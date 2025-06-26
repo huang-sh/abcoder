@@ -1,0 +1,55 @@
+[project]
+name = "abcoder"
+dynamic = ["version"] 
+description = "Agentic bioinformatics coder"
+readme = "README.md"
+#license = { file = "LICENSE" }
+authors = [
+    { name = "shuang", email = "hsh-me@outlook.com" }
+]
+
+keywords = [
+    "mcp",
+    "model context protocol",
+    "llm",
+    "agent",
+    "scRNA-seq",
+    "single cell",
+    "bioinformatics",
+    "AI"
+]
+
+requires-python = ">=3.10"
+dependencies = [
+    "mcp>=1.8.0",
+    "fastmcp>=2.7.0",
+    "jupyter_client"
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project.scripts]
+abcoder = "abcoder.cli:app"
+
+
+[dependency-groups]
+dev = [
+    "pytest>=8.3.4",
+    "pytest-asyncio>=0.23.5",
+]
+
+[tool.hatch.version]
+path = "src/abcoder/__init__.py"  
+
+
+[project.urls]
+Homepage = "https://github.com/huang-sh/abcoder"
+Repository = "https://github.com/huang-sh/abcoder"
+Documentation = "https://github.com/huang-sh/abcoder"
+
+
+[tool.pytest.ini_options]
+asyncio_mode = "strict"
+asyncio_default_fixture_loop_scope = "function"
