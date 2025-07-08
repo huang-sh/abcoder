@@ -13,6 +13,8 @@ class JupyterClientExecutor:
         kernel_manager, kernel_client = jupyter_client.manager.start_new_kernel(
             kernel_name=kernel_name
         )
+        self.ksm = jupyter_client.kernelspec.KernelSpecManager()
+        self.spec = self.ksm.get_kernel_spec(kernel_name)
         self.kernel_client = kernel_client
         self.kernel_manager = kernel_manager
         self.cells: List[Dict[str, Any]] = []
@@ -89,7 +91,9 @@ class JupyterClientExecutor:
 
         try:
             # Try to compile the code to check syntax
-            compile(backup_code, "<string>", "exec")
+            if self.spec.language == "python":
+                if not backup_code.startswith(("!", "%")):
+                    compile(backup_code, "<string>", "exec")
         except SyntaxError as e:
             result = {
                 "result": "",
