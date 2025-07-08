@@ -1,11 +1,14 @@
 # abcoder
 
-Agentic bioinformatics coder - A Jupyter notebook manager with MCP (Model Context Protocol) integration for AI-assisted code execution and bioinformatics workflows.
+Agentic backend coder - A Jupyter notebook manager with MCP (Model Context Protocol) integration for AI-assisted code execution and bioinformatics workflows.
+
+**Supports multiple Jupyter kernels (Python, R, etc.) for parallel notebook management.**
 
 ## 🪩 What can it do?
 
 - **Jupyter Notebook Management**: Create, switch between, and manage multiple Jupyter notebooks
-- **Code Execution**: Execute single-step or multi-step Python code in Jupyter kernels
+- **Multi-kernel Support**: Manage and run code in multiple Jupyter kernels (e.g., Python, R) simultaneously
+- **Code Execution**: Execute single-step or multi-step code in Jupyter kernels
 - **Variable Backup**: Safely backup variables before code execution to prevent data loss
 - **API Documentation**: Query function and API documentation directly from the kernel
 - **Output Handling**: Capture and display execution results, errors, and generated figures
