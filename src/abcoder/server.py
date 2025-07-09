@@ -54,11 +54,11 @@ def switch_active_notebook(
 @nb_mcp.tool(tags={"nb"})
 def single_step_execute(
     code: str = Field(description="The code to execute a single step operation."),
-    backup_var: str = Field(
+    backup_var: str | None = Field(
         description="The variable name to backup before execution in code (e.g., anndata object).",
         default=None,
     ),
-    show_var: str = Field(
+    show_var: str | None = Field(
         description="the anndata object variable name to print anndata if you want to see anndata in Output Area after execution.",
         default=None,
     ),
@@ -83,11 +83,11 @@ def single_step_execute(
 @nb_mcp.tool(tags={"nb"})
 def multi_step_execute(
     code: str = Field(description="The code to execute multiple steps of operations."),
-    backup_var: str = Field(
+    backup_var: str | None = Field(
         description="The variable name to backup before execution in code (e.g., anndata object).",
         default=None,
     ),
-    show_var: str = Field(
+    show_var: str | None = Field(
         description="the anndata object variable name to print anndata if you want to see anndata in Output Area after execution.",
         default=None,
     ),
