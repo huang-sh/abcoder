@@ -1,8 +1,5 @@
 import pytest
 from fastmcp import Client
-import nest_asyncio
-
-nest_asyncio.apply()
 
 
 @pytest.mark.asyncio
