@@ -355,6 +355,9 @@ class NotebookManager:
     def switch_notebook(self, nbid):
         self.active_nbid = nbid
 
+    def list_notebook(self):
+        return list(self.notebook.keys())
+
     @property
     def active_notebook(self):
         if not self.notebook:

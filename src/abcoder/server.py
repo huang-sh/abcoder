@@ -43,6 +43,13 @@ def create_notebook(
 
 
 @nb_mcp.tool(tags={"nb"})
+def list_notebooks():
+    """List all notebooks."""
+    nbm = get_nbm()
+    return {"active_notebook": nbm.active_nbid, "all_notebooks": nbm.list_notebook()}
+
+
+@nb_mcp.tool(tags={"nb"})
 def switch_active_notebook(
     nbid: str = Field(description="The notebook id to switch to."),
 ):
