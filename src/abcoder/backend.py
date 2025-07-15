@@ -338,7 +338,7 @@ class NotebookManager:
         self.notebook = {}
         self.active_nbid = None
 
-    def create_notebook(self, nbid, path, kernel="python"):
+    def create_notebook(self, nbid, path, kernel="python3"):
         self.notebook[nbid] = JupyterClientExecutor(kernel, path)
         self.active_nbid = nbid
 

@@ -29,7 +29,7 @@ def create_notebook(
     nbid: str = Field(description="The notebook id to create."),
     path: str | None = Field(default=None, description="The path to the notebook."),
     kernel: str = Field(
-        default="python", description="The kernel to use for the notebook."
+        default="python3", description="The kernel to use for the notebook."
     ),
 ):
     """Create a notebook."""
