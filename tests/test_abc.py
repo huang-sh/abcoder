@@ -54,5 +54,5 @@ async def test_notebook(mcp):
         assert "test" in result.content[0].text
 
         # Test shutdown_notebook
-        result = await client.call_tool("shutdown_notebook", {"nbid": "test"})
+        result = await client.call_tool("kill_notebook", {"nbid": "test"})
         assert "Notebook test shutdown" in result.content[0].text

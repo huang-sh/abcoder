@@ -54,17 +54,19 @@ def switch_active_notebook(
     nbid: str = Field(description="The notebook id to switch to."),
 ):
     """Switch to a notebook."""
+    nbm = get_nbm()
     nbm.switch_notebook(nbid)
     return f"You have switched to notebook {nbid}."
 
 
 @nb_mcp.tool(tags={"nb"})
-def shutdown_notebook(
+def kill_notebook(
     nbid: str | None = Field(
         description="The notebook id to shutdown. Default None is the active notebook."
     ),
 ):
-    """shutdown a notebook."""
+    """kill/shutdown a notebook."""
+    nbm = get_nbm()
     return nbm.shutdown_notebook(nbid)
 
 
