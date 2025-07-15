@@ -347,10 +347,11 @@ class NotebookManager:
             nbid = self.active_nbid
         if nbid not in self.notebook:
             raise ValueError(
-                f"Notebook {nbid} not found. Available notebooks: {list(self.notebook.keys())}"
+                f"Notebook {nbid} not found. Available notebooks: {self.list_notebook()}"
             )
         self.notebook[nbid].shutdown()
         del self.notebook[nbid]
+        return f"Notebook {nbid} shutdown."
 
     def switch_notebook(self, nbid):
         self.active_nbid = nbid

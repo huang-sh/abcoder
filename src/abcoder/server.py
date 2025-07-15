@@ -65,8 +65,7 @@ def shutdown_notebook(
     ),
 ):
     """shutdown a notebook."""
-    nbm.shutdown_notebook(nbid)
-    return f"Notebook {nbid} shutdown."
+    return nbm.shutdown_notebook(nbid)
 
 
 @nb_mcp.tool(tags={"nb"})
