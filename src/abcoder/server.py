@@ -52,6 +52,17 @@ def switch_active_notebook(
 
 
 @nb_mcp.tool(tags={"nb"})
+def shutdown_notebook(
+    nbid: str | None = Field(
+        description="The notebook id to shutdown. Default None is the active notebook."
+    ),
+):
+    """shutdown a notebook."""
+    nbm.shutdown_notebook(nbid)
+    return f"Notebook {nbid} shutdown."
+
+
+@nb_mcp.tool(tags={"nb"})
 def single_step_execute(
     code: str = Field(description="The code to execute a single step operation."),
     backup_var: str | None = Field(

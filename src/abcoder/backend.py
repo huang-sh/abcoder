@@ -342,7 +342,13 @@ class NotebookManager:
         self.notebook[nbid] = JupyterClientExecutor(kernel, path)
         self.active_nbid = nbid
 
-    def delete_notebook(self, nbid):
+    def shutdown_notebook(self, nbid=None):
+        if nbid is None:
+            nbid = self.active_nbid
+        if nbid not in self.notebook:
+            raise ValueError(
+                f"Notebook {nbid} not found. Available notebooks: {list(self.notebook.keys())}"
+            )
         self.notebook[nbid].shutdown()
         del self.notebook[nbid]
 
