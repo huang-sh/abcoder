@@ -27,7 +27,7 @@ nb_mcp = FastMCP("Notebook-Server", lifespan=nb_lifespan)
 @nb_mcp.tool(tags={"nb"})
 def create_notebook(
     nbid: str = Field(description="The notebook id to create."),
-    path: str | None = Field(default=None, description="The path to the notebook."),
+    path: str | None = Field(default=None, description="The notebook file path."),
     kernel: str = Field(
         default="python3", description="The kernel to use for the notebook."
     ),
