@@ -4,6 +4,7 @@ from datetime import datetime
 import os
 import re
 from typing import Optional, Dict, Any, List
+from pathlib import Path
 
 
 class JupyterClientExecutor:
@@ -164,11 +165,18 @@ class JupyterClientExecutor:
                             }
                         )
                 elif msg["msg_type"] == "display_data":
+                    figdir = Path("./figures")
                     # Handle display data (images, HTML, etc.)
                     if "image/png" in content["data"]:
-                        result["display_data"] = {
-                            "image/png": "success to create figure"
-                        }
+                        import base64
+
+                        figdir.mkdir(exist_ok=True)
+                        figpath = (
+                            figdir / f"{datetime.now().strftime('%Y%m%d_%H%M%S')}.png"
+                        )
+                        with open(figpath, "wb") as f:
+                            f.write(base64.b64decode(content["data"]["image/png"]))
+                        result["display_data"] = {"image/png": figpath}
                         cell["outputs"].append(
                             {
                                 "output_type": "display_data",
