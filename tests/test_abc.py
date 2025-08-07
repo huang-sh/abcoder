@@ -1,5 +1,6 @@
 import pytest
 from fastmcp import Client
+import os
 
 
 @pytest.mark.asyncio
@@ -52,6 +53,29 @@ async def test_notebook(mcp):
         # Test list_notebooks
         result = await client.call_tool("list_notebooks")
         assert "test" in result.content[0].text
+
+        # Test single_step_execute generate image
+        result = await client.call_tool(
+            "single_step_execute",
+            {
+                "code": "import matplotlib.pyplot as plt\nplt.plot([1,2,3],[4,5,6])\nplt.savefig('test.png')\nwith open('test.png', 'rb') as f: img_bytes = f.read()\nimg_bytes[:10]",
+                "backup_var": None,
+                "show_var": "img_bytes",
+            },
+        )
+        print(result.content[0])
+        assert isinstance(result.content[0].text, str) and (
+            "PNG" in result.content[0].text or "bytes" in result.content[0].text
+        )
+
+        result = await client.call_tool(
+            "get_path_structure", {"path": str(os.getcwd())}
+        )
+        assert "tests" in result.content[0].text
+
+        # Test file path
+        result = await client.call_tool("get_path_structure", {"path": str(__file__)})
+        assert "test_abc.py" in result.content[0].text
 
         # Test shutdown_notebook
         result = await client.call_tool("kill_notebook", {"nbid": "test"})
