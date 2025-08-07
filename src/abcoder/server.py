@@ -95,8 +95,6 @@ def single_step_execute(
     nbm = get_nbm()
     jce = nbm.active_notebook
     res = jce.execute(code, backup_var=backup_var)
-    if res["display_data"]:
-        res["display_data"]["image/png"] = "success to create image"
     res["notebook_id"] = nbm.active_nbid
     return res
 
