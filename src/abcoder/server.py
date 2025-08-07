@@ -4,6 +4,7 @@ from contextlib import asynccontextmanager
 from pydantic import Field
 from fastmcp.server.dependencies import get_context
 from .backend import NotebookManager
+from .util import add_figure_route
 
 
 def get_nbm():
@@ -22,6 +23,7 @@ async def nb_lifespan(server: FastMCP) -> AsyncIterator[Any]:
 
 
 nb_mcp = FastMCP("Notebook-Server", lifespan=nb_lifespan)
+add_figure_route(nb_mcp)
 
 
 @nb_mcp.tool(tags={"nb"})
