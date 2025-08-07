@@ -4,7 +4,7 @@ from contextlib import asynccontextmanager
 from pydantic import Field
 from fastmcp.server.dependencies import get_context
 from .backend import NotebookManager
-from .util import add_figure_route
+from .util import add_figure_route, get_path_info
 
 
 def get_nbm():
@@ -140,3 +140,11 @@ def query_api_doc(
     res = jce.execute(code, add_cell=False)
     res["notebook_id"] = nbm.active_nbid
     return res
+
+
+@nb_mcp.tool(tags={"nb"})
+def get_path_structure(
+    path: str = Field(description="The path to get the structure of"),
+) -> str:
+    """get the directory structure of a path"""
+    return get_path_info(path)
