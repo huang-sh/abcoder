@@ -5,6 +5,8 @@ import os
 import re
 from typing import Optional, Dict, Any, List
 from pathlib import Path
+from contextlib import contextmanager
+from copy import deepcopy
 
 
 class JupyterClientExecutor:
@@ -256,28 +258,28 @@ class JupyterClientExecutor:
 
     def rerun_cell(self, cell_index: int) -> None:
         """
-        重新运行指定的 cell。
+        Re-run the specified cell.
 
         Args:
-            cell_index (int): 要重新运行的 cell 的索引（从0开始）
+            cell_index (int): Index of the cell to re-run (0-based)
         """
         if not 0 <= cell_index < len(self.cells):
-            print(f"错误：cell 索引 {cell_index} 超出范围")
+            print(f"Error: cell index {cell_index} out of range")
             return
 
         cell = self.cells[cell_index]
         if cell["cell_type"] != "code":
-            print(f"错误：cell {cell_index} 不是代码 cell")
+            print(f"Error: cell {cell_index} is not a code cell")
             return
 
-        # 清除之前的输出
+        # Clear previous outputs
         cell["outputs"] = []
 
-        # 重新执行代码
+        # Re-execute the code
         self.execute(cell["source"])
 
-        # 添加说明文档
-        self.add_markdown(f"重新运行 cell {cell_index}")
+        # Add documentation
+        self.add_markdown(f"Re-run cell {cell_index}")
 
     def save_notebook(self, filename: Optional[str] = None) -> Optional[str]:
         """
@@ -374,3 +376,37 @@ class NotebookManager:
         if self.active_nbid not in self.notebook:
             raise ValueError(f"Notebook {self.active_nbid} not found.")
         return self.notebook[self.active_nbid]
+
+
+@contextmanager
+def atomic_adata(adata):
+    # 1) Prohibit transactions on views to avoid "lost" write-backs
+    if getattr(adata, "is_view", False):
+        raise ValueError(
+            "adata is a view. Please use adata = adata.copy() first before atomic_adata."
+        )
+
+    # 2) Work on a complete copy (deep copy semantics handled by AnnData's own copy implementation)
+    work = adata.copy()
+
+    # 3) Mutable container: allows rebinding within the with block (e.g., A = A[:, genes])
+    box = {"A": work}
+
+    try:
+        # Make all modifications to box["A"] (the working copy) within the with block
+        yield box
+    except Exception:
+        # Error: don't commit, original adata remains unchanged
+        raise
+    else:
+        A = box["A"]
+        adata._init_as_actual(
+            X=A.X if A.X is not None else None,
+            obs=A.obs.copy(deep=True) if A.obs is not None else None,
+            var=A.var.copy(deep=True) if A.var is not None else None,
+            uns=deepcopy(A.uns) if A.uns is not None else None,
+            obsm=A.obsm.copy() if A.obsm is not None else None,
+            varm=A.varm.copy() if A.varm is not None else None,
+            layers=A.layers.copy() if A.layers is not None else None,
+            raw=A.raw.copy() if A.raw is not None else None,
+        )
