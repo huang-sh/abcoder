@@ -87,8 +87,7 @@ class JupyterClientExecutor:
 
         # First check if the code is valid
         if backup_var:
-            backup_code = code.replace(backup_var, f"{backup_var}_backup")
-            backup_code = f"{backup_var}_backup = {backup_var}.copy()\n{backup_code}\n{backup_var} = {backup_var}_backup"
+            backup_code = f"{backup_var}_backup = {backup_var}.copy()\n{code}\n"
         else:
             backup_code = code
 
@@ -187,6 +186,7 @@ class JupyterClientExecutor:
                             }
                         )
                 elif msg["msg_type"] == "error":
+                    self.execute("{backup_var} = {backup_var}_backup", add_cell=False)
                     error_msg = "\n".join(content["traceback"])
 
                     clean_traceback = [
