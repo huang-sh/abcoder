@@ -185,7 +185,7 @@ class JupyterClientExecutor:
                         cell["outputs"].append(
                             {
                                 "output_type": "display_data",
-                                "data": figpath,
+                                "data": content["data"],
                                 "metadata": content.get("metadata", {}),
                             }
                         )
