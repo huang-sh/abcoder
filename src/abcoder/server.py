@@ -75,7 +75,7 @@ def kill_notebook(
 @nb_mcp.tool(tags={"nb"})
 def single_step_execute(
     code: str = Field(description="The code to execute a single step operation."),
-    backup_var: str | None = Field(
+    backup_var: list[str] | None = Field(
         description="The variable name to backup before execution in code (e.g., anndata object).",
         default=None,
     ),
@@ -85,9 +85,10 @@ def single_step_execute(
     ),
 ):
     """Execute a single step operation in the Jupyter kernel."""
-    if bool(backup_var):
-        if backup_var not in code:
-            return f"Variable {backup_var} not found in the code."
+    if backup_var:
+        for var in backup_var:
+            if var not in code:
+                return f"Variable {var} not found in the code."
     if bool(show_var):
         if show_var not in code:
             return f"Variable {show_var} not found in the code."
@@ -102,7 +103,7 @@ def single_step_execute(
 @nb_mcp.tool(tags={"nb"})
 def multi_step_execute(
     code: str = Field(description="The code to execute multiple steps of operations."),
-    backup_var: str | None = Field(
+    backup_var: list[str] | None = Field(
         description="The variable name to backup before execution in code (e.g., anndata object).",
         default=None,
     ),
@@ -113,8 +114,9 @@ def multi_step_execute(
 ):
     """Execute multiple steps of operations in the Jupyter kernel."""
     if backup_var:
-        if backup_var not in code:
-            return f"Variable {backup_var} not found in the code."
+        for var in backup_var:
+            if var not in code:
+                return f"Variable {var} not found in the code."
     if show_var:
         if show_var not in code:
             return f"Variable {show_var} not found in the code."

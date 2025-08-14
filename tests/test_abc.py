@@ -33,7 +33,7 @@ async def test_notebook(mcp):
         # Test single_step_execute show_var
         result = await client.call_tool(
             "single_step_execute",
-            {"code": "hello = 'hello3'\nprint(hello)", "backup_var": "hello"},
+            {"code": "hello = 'hello3'\nprint(hello)", "backup_var": ["hello"]},
         )
         assert "hello3" in result.content[0].text
 

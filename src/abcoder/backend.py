@@ -59,7 +59,7 @@ class JupyterClientExecutor:
                 break
 
     def execute(
-        self, code: str, add_cell: bool = True, backup_var: Optional[str] = None
+        self, code: str, add_cell: bool = True, backup_var: List[str] = None
     ) -> Dict[str, Any]:
         """
         Execute code in the Jupyter kernel and return the results.
@@ -85,9 +85,13 @@ class JupyterClientExecutor:
                 "success": False,
             }
 
-        # First check if the code is valid
         if backup_var:
-            backup_code = f"{backup_var}_backup = {backup_var}.copy()\n{code}\n"
+            backup_code = ""
+            for var in backup_var:
+                backup_code += f"{var}_backup = {var}.copy()\n"
+            backup_code += f"{code}\n"
+            for var in backup_var:
+                backup_code += f"{var} = {var}_backup\n"
         else:
             backup_code = code
 
@@ -186,7 +190,10 @@ class JupyterClientExecutor:
                             }
                         )
                 elif msg["msg_type"] == "error":
-                    self.execute("{backup_var} = {backup_var}_backup", add_cell=False)
+                    if backup_var:
+                        for var in backup_var:
+                            backup_code += f"{var} = {var}_backup\n"
+                        self.execute(backup_code, add_cell=False)
                     error_msg = "\n".join(content["traceback"])
 
                     clean_traceback = [
