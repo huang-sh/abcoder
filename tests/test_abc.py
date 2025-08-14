@@ -58,15 +58,11 @@ async def test_notebook(mcp):
         result = await client.call_tool(
             "single_step_execute",
             {
-                "code": "import matplotlib.pyplot as plt\nplt.plot([1,2,3],[4,5,6])\nplt.savefig('test.png')\nwith open('test.png', 'rb') as f: img_bytes = f.read()\nimg_bytes[:10]",
+                "code": "import matplotlib.pyplot as plt\nplt.plot([1,2,3],[4,5,6])\nplt.show()\n",
                 "backup_var": None,
-                "show_var": "img_bytes",
             },
         )
-        print(result.content[0])
-        assert isinstance(result.content[0].text, str) and (
-            "PNG" in result.content[0].text or "bytes" in result.content[0].text
-        )
+        assert ".png" in result.content[0].text
 
         result = await client.call_tool(
             "get_path_structure", {"path": str(os.getcwd())}

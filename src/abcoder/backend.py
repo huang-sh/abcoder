@@ -185,7 +185,7 @@ class JupyterClientExecutor:
                         cell["outputs"].append(
                             {
                                 "output_type": "display_data",
-                                "data": content["data"],
+                                "data": figpath,
                                 "metadata": content.get("metadata", {}),
                             }
                         )
@@ -259,8 +259,6 @@ class JupyterClientExecutor:
             # Auto-save if notebook_path is set
             if self.notebook_path:
                 self.save_notebook()
-        if result["display_data"]:
-            result["display_data"]["image/png"] = "success to create image"
         return result
 
     def rerun_cell(self, cell_index: int) -> None:
