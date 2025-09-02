@@ -3,10 +3,152 @@ import json
 from datetime import datetime
 import os
 import re
+import time
+import psutil
+import threading
 from typing import Optional, Dict, Any, List
 from pathlib import Path
 from contextlib import contextmanager
 from copy import deepcopy
+from queue import Empty
+
+
+class MemoryMonitor:
+    """Monitor Jupyter kernel memory usage."""
+
+    def __init__(self, kernel_manager=None):
+        self.kernel_manager = kernel_manager
+        self.kernel_process = None
+        self.initial_memory = 0.0
+        self.peak_memory = 0.0
+        self.monitoring = False
+        self.monitor_thread = None
+        self._lock = threading.Lock()
+
+    def _get_kernel_process(self):
+        """Get the kernel process object."""
+        if self.kernel_process is None and self.kernel_manager is not None:
+            try:
+                # Method 1: try to get kernel process from kernel_manager
+                if hasattr(self.kernel_manager, "kernel") and hasattr(
+                    self.kernel_manager.kernel, "pid"
+                ):
+                    pid = self.kernel_manager.kernel.pid
+                    self.kernel_process = psutil.Process(pid)
+                elif hasattr(self.kernel_manager, "pid"):
+                    pid = self.kernel_manager.pid
+                    self.kernel_process = psutil.Process(pid)
+                else:
+                    # Method 2: find kernel process by matching the connection file
+                    connection_file = getattr(
+                        self.kernel_manager, "connection_file", None
+                    )
+                    if connection_file:
+                        self.kernel_process = self._find_kernel_by_connection_file(
+                            connection_file
+                        )
+
+                    # Method 3: fallback to the latest ipykernel process by start time
+                    if self.kernel_process is None:
+                        self.kernel_process = self._find_latest_ipykernel_process()
+
+            except (psutil.NoSuchProcess, psutil.AccessDenied, AttributeError):
+                self.kernel_process = None
+        return self.kernel_process
+
+    def _find_kernel_by_connection_file(self, connection_file):
+        """Find kernel process via the connection file path."""
+        try:
+            import psutil
+
+            for proc in psutil.process_iter(["pid", "cmdline"]):
+                try:
+                    cmdline = proc.info["cmdline"]
+                    if cmdline and any("ipykernel" in str(arg) for arg in cmdline):
+                        # Check if the connection file path is present in cmdline
+                        if connection_file in " ".join(cmdline):
+                            return psutil.Process(proc.info["pid"])
+                except (psutil.NoSuchProcess, psutil.AccessDenied):
+                    continue
+        except Exception:
+            pass
+        return None
+
+    def _find_latest_ipykernel_process(self):
+        """Find the most recently started ipykernel process."""
+        try:
+            import psutil
+
+            latest_proc = None
+            latest_time = 0
+
+            for proc in psutil.process_iter(["pid", "cmdline", "create_time"]):
+                try:
+                    cmdline = proc.info["cmdline"]
+                    if cmdline and any("ipykernel" in str(arg) for arg in cmdline):
+                        create_time = proc.info["create_time"]
+                        if create_time > latest_time:
+                            latest_time = create_time
+                            latest_proc = psutil.Process(proc.info["pid"])
+                except (psutil.NoSuchProcess, psutil.AccessDenied):
+                    continue
+
+            return latest_proc
+        except Exception:
+            return None
+
+    def get_memory_usage(self) -> float:
+        """Get Jupyter kernel RSS memory usage in MB."""
+        kernel_process = self._get_kernel_process()
+        if kernel_process is not None:
+            try:
+                memory_info = kernel_process.memory_info()
+                return memory_info.rss / 1024 / 1024  # convert to MB
+            except (psutil.NoSuchProcess, psutil.AccessDenied):
+                # Kernel process might have exited; reset reference
+                self.kernel_process = None
+                return 0.0
+        else:
+            # If kernel process cannot be obtained, return 0
+            return 0.0
+
+    def start_monitoring(self):
+        """Start monitoring memory usage."""
+        self.initial_memory = self.get_memory_usage()
+        self.peak_memory = self.initial_memory
+        self.monitoring = True
+        self.monitor_thread = threading.Thread(target=self._monitor_loop, daemon=True)
+        self.monitor_thread.start()
+
+    def stop_monitoring(self) -> Dict[str, float]:
+        """Stop monitoring and return memory statistics."""
+        self.monitoring = False
+        if self.monitor_thread:
+            self.monitor_thread.join(timeout=1.0)
+
+        final_memory = self.get_memory_usage()
+        memory_delta = final_memory - self.initial_memory
+
+        return {
+            "initial_memory_mb": self.initial_memory,
+            "final_memory_mb": final_memory,
+            "peak_memory_mb": self.peak_memory,
+            "memory_delta_mb": memory_delta,
+        }
+
+    def _monitor_loop(self):
+        """Monitoring loop."""
+        while self.monitoring:
+            try:
+                current_memory = self.get_memory_usage()
+                with self._lock:
+                    if current_memory > self.peak_memory:
+                        self.peak_memory = current_memory
+                time.sleep(0.1)  # check every 100ms
+            except Exception:
+                # Log error and continue monitoring
+                # print(f"Memory monitoring error: {e}")  # debug suppressed
+                time.sleep(0.1)
 
 
 class JupyterClientExecutor:
@@ -22,6 +164,7 @@ class JupyterClientExecutor:
         self.kernel_manager = kernel_manager
         self.cells: List[Dict[str, Any]] = []
         self.notebook_path = notebook_path
+        self.memory_monitor = MemoryMonitor(kernel_manager)
         if notebook_path:
             self.save_notebook()
 
@@ -67,6 +210,7 @@ class JupyterClientExecutor:
         Args:
             code (str): The code to execute
             add_cell (bool): Whether to add the executed cell to the notebook. Default is True.
+            backup_var (List[str]): List of variables to backup before execution
 
         Returns:
             dict: A dictionary containing execution results with the following keys:
@@ -76,6 +220,8 @@ class JupyterClientExecutor:
                 - display_data: Display data (if any)
                 - error: Error information (if any)
                 - success: Boolean indicating if execution was successful
+                - execution_time: Execution time in seconds
+                - memory_stats: Memory usage statistics
         """
         if self.kernel_client is None:
             return {
@@ -83,7 +229,13 @@ class JupyterClientExecutor:
                 "display_data": "",
                 "error": "Kernel client is not available",
                 "success": False,
+                "execution_time": 0.0,
+                "memory_stats": {},
             }
+
+        # Start timer and begin memory monitoring
+        start_time = time.time()
+        self.memory_monitor.start_monitoring()
 
         if backup_var:
             backup_code = ""
@@ -101,6 +253,10 @@ class JupyterClientExecutor:
                 if not backup_code.startswith(("!", "%")):
                     compile(backup_code, "<string>", "exec")
         except SyntaxError as e:
+            # Stop memory monitoring
+            memory_stats = self.memory_monitor.stop_monitoring()
+            execution_time = time.time() - start_time
+
             result = {
                 "result": "",
                 "display_data": "",
@@ -111,6 +267,8 @@ class JupyterClientExecutor:
                     "error_code": code,
                 },
                 "success": False,
+                "execution_time": execution_time,
+                "memory_stats": memory_stats,
             }
             return result
 
@@ -124,12 +282,22 @@ class JupyterClientExecutor:
         }
 
         # Initialize result dictionary
-        result = {"result": "", "display_data": "", "error": "", "success": True}
+        result = {
+            "result": "",
+            "display_data": "",
+            "error": "",
+            "success": True,
+            "execution_time": 0.0,
+            "memory_stats": {},
+        }
 
         msg_id = self.kernel_client.execute(code)
+        # Watchdog to avoid hanging indefinitely waiting for kernel messages
+        max_wait_seconds = 30.0
+        deadline = time.time() + max_wait_seconds
         while True:
             try:
-                msg = self.kernel_client.get_iopub_msg()
+                msg = self.kernel_client.get_iopub_msg(timeout=1.0)
 
                 content = msg["content"]
 
@@ -213,6 +381,21 @@ class JupyterClientExecutor:
                         break
                     continue
 
+            except Empty:
+                # Timed out waiting for a message; check global deadline
+                if time.time() > deadline:
+                    error_msg = (
+                        "TimeoutError: Execution timed out waiting for kernel messages"
+                    )
+                    result["error"] = {
+                        "error_type": "TimeoutError",
+                        "error_info": "Execution exceeded maximum wait time",
+                        "error_traceback": [error_msg],
+                    }
+                    result["success"] = False
+                    self._clear_messages()
+                    break
+                continue
             except KeyboardInterrupt:
                 print("Interrupted by user.")
                 error_msg = "KeyboardInterrupt: Interrupted by user"
@@ -250,6 +433,14 @@ class JupyterClientExecutor:
                 )
                 self._clear_messages()
                 break
+
+        # Stop memory monitoring and compute execution time
+        memory_stats = self.memory_monitor.stop_monitoring()
+        execution_time = time.time() - start_time
+
+        # Attach execution time and memory stats to result
+        result["execution_time"] = execution_time
+        result["memory_stats"] = memory_stats
 
         # Only add the cell to our list of cells if execution was successful and add_cell is True
         if result["success"] and add_cell:
