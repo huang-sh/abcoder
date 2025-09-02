@@ -247,7 +247,7 @@ class JupyterClientExecutor:
         # Controls whether auto-save during execute() should overwrite existing files
         self.auto_save_overwrite = auto_save_overwrite
         # If a notebook file exists and overwrite mode is enabled, load existing cells
-        if Path(notebook_path).exists() and auto_save_overwrite:
+        if notebook_path and Path(notebook_path).exists() and auto_save_overwrite:
             try:
                 self.load_notebook(notebook_path)
             except Exception:
@@ -347,14 +347,19 @@ class JupyterClientExecutor:
         self.memory_monitor.start_monitoring()
 
         if backup_var:
+            # Create backup code: backup variables, then execute user code
             backup_code = ""
             for var in backup_var:
-                backup_code += f"{var}_backup = {var}.copy()\n"
+                # Use different copy methods based on variable type
+                backup_code += f"{var}_backup = {var}[:] if isinstance({var}, list) else {var}.copy() if hasattr({var}, 'copy') else {var}\n"
             backup_code += f"{code}\n"
+            # Store the restore code separately for error handling only
+            restore_code = ""
             for var in backup_var:
-                backup_code += f"{var} = {var}_backup\n"
+                restore_code += f"{var} = {var}_backup\n"
         else:
             backup_code = code
+            restore_code = ""
 
         try:
             # Try to compile the code to check syntax
@@ -400,7 +405,7 @@ class JupyterClientExecutor:
             "memory_stats": {},
         }
 
-        msg_id = self.kernel_client.execute(code)
+        msg_id = self.kernel_client.execute(backup_code)
         # Watchdog to avoid hanging indefinitely waiting for kernel messages
         max_wait_seconds = 30.0
         deadline = time.time() + max_wait_seconds
@@ -467,10 +472,38 @@ class JupyterClientExecutor:
                             }
                         )
                 elif msg["msg_type"] == "error":
-                    if backup_var:
-                        for var in backup_var:
-                            backup_code += f"{var} = {var}_backup\n"
-                        self.execute(backup_code, add_cell=False)
+                    if backup_var and restore_code:
+                        # Execute restore code directly in the kernel
+                        try:
+                            restore_msg_id = self.kernel_client.execute(restore_code)
+                            # Wait for restore execution to complete
+                            restore_deadline = (
+                                time.time() + 10.0
+                            )  # 10 second timeout for restore operations
+                            while time.time() < restore_deadline:
+                                try:
+                                    restore_msg = self.kernel_client.get_iopub_msg(
+                                        timeout=0.1
+                                    )
+                                    # Only process messages for our restore execution
+                                    if (
+                                        restore_msg.get("parent_header", {}).get(
+                                            "msg_id"
+                                        )
+                                        == restore_msg_id
+                                    ):
+                                        if (
+                                            restore_msg["msg_type"] == "status"
+                                            and restore_msg["content"][
+                                                "execution_state"
+                                            ]
+                                            == "idle"
+                                        ):
+                                            break
+                                except Exception:
+                                    break
+                        except Exception:
+                            pass  # Ignore restore errors
                     error_msg = "\n".join(content["traceback"])
 
                     clean_traceback = [
