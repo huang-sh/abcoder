@@ -160,6 +160,7 @@ class JupyterClientExecutor:
         connection_file: Optional[str] = None,
         runtime_dir: Optional[str] = None,
         auto_save_overwrite: bool = False,
+        connection_file_output: Optional[str] = None,
     ):
         # If a connection_file is provided, attach to an existing kernel; otherwise start a new one
         if connection_file:
@@ -197,7 +198,24 @@ class JupyterClientExecutor:
                 self.spec = _Spec()
             self._owns_kernel = False
         else:
-            if runtime_dir:
+            if connection_file_output:
+                # Start a new kernel and write connection file to the exact specified path
+                os.makedirs(
+                    os.path.dirname(os.path.abspath(connection_file_output)),
+                    exist_ok=True,
+                )
+                km = jupyter_client.KernelManager()
+                km.kernel_name = kernel_name
+                km.connection_file = connection_file_output
+                km.start_kernel()
+                kc = km.client()
+                try:
+                    kc.load_connection_file(km.connection_file)
+                except Exception:
+                    pass
+                kc.start_channels()
+                kernel_manager, kernel_client = km, kc
+            elif runtime_dir:
                 # Start a new kernel and force connection file under runtime_dir
                 os.makedirs(runtime_dir, exist_ok=True)
                 km = jupyter_client.KernelManager()
@@ -229,14 +247,12 @@ class JupyterClientExecutor:
         # Controls whether auto-save during execute() should overwrite existing files
         self.auto_save_overwrite = auto_save_overwrite
         # If a notebook file exists and overwrite mode is enabled, load existing cells
-        if notebook_path and auto_save_overwrite and os.path.exists(notebook_path):
+        if Path(notebook_path).exists() and auto_save_overwrite:
             try:
                 self.load_notebook(notebook_path)
             except Exception:
                 # Ignore load errors and start fresh
                 pass
-        if notebook_path:
-            self.save_notebook(overwrite=self.auto_save_overwrite)
 
     @classmethod
     def from_connection_file(
@@ -296,7 +312,6 @@ class JupyterClientExecutor:
         code: str,
         add_cell: bool = True,
         backup_var: List[str] = None,
-        save_overwrite: Optional[bool] = None,
     ) -> Dict[str, Any]:
         """
         Execute code in the Jupyter kernel and return the results.
@@ -542,13 +557,7 @@ class JupyterClientExecutor:
             self.cells.append(cell)
 
             # Auto-save if notebook_path is set
-            if self.notebook_path:
-                overwrite_flag = (
-                    self.auto_save_overwrite
-                    if save_overwrite is None
-                    else save_overwrite
-                )
-                self.save_notebook(overwrite=overwrite_flag)
+            self.save_notebook()
         return result
 
     def rerun_cell(self, cell_index: int) -> None:
@@ -576,9 +585,7 @@ class JupyterClientExecutor:
         # Add documentation
         self.add_markdown(f"Re-run cell {cell_index}")
 
-    def save_notebook(
-        self, filename: Optional[str] = None, overwrite: bool = False
-    ) -> Optional[str]:
+    def save_notebook(self, filename: Optional[str] = None) -> Optional[str]:
         """
         Save the current notebook state to a file.
 
@@ -599,12 +606,6 @@ class JupyterClientExecutor:
 
         # Create directory if it doesn't exist
         os.makedirs(os.path.dirname(os.path.abspath(filename)), exist_ok=True)
-
-        # If not overwriting, and target exists, generate a non-colliding filename
-        if not overwrite and os.path.exists(filename):
-            base, ext = os.path.splitext(filename)
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            filename = f"{base}_{timestamp}{ext}"
 
         notebook = {
             "cells": self.cells,
@@ -700,6 +701,7 @@ class NotebookManager:
         connection_file=None,
         runtime_dir=None,
         auto_save_overwrite: bool = False,
+        connection_file_output: Optional[str] = None,
     ):
         """Create a notebook. If connection_file is provided, attach to an existing kernel; otherwise start a new one.
 
@@ -711,6 +713,7 @@ class NotebookManager:
             connection_file=connection_file,
             runtime_dir=runtime_dir,
             auto_save_overwrite=auto_save_overwrite,
+            connection_file_output=connection_file_output,
         )
         self.active_nbid = nbid
 
