@@ -11,6 +11,7 @@ from pathlib import Path
 from contextlib import contextmanager
 from copy import deepcopy
 from queue import Empty
+from uuid import uuid4
 
 
 class MemoryMonitor:
@@ -153,20 +154,109 @@ class MemoryMonitor:
 
 class JupyterClientExecutor:
     def __init__(
-        self, kernel_name: str = "python", notebook_path: Optional[str] = None
+        self,
+        kernel_name: str = "python",
+        notebook_path: Optional[str] = None,
+        connection_file: Optional[str] = None,
+        runtime_dir: Optional[str] = None,
+        auto_save_overwrite: bool = False,
     ):
-        kernel_manager, kernel_client = jupyter_client.manager.start_new_kernel(
-            kernel_name=kernel_name
-        )
-        self.ksm = jupyter_client.kernelspec.KernelSpecManager()
-        self.spec = self.ksm.get_kernel_spec(kernel_name)
-        self.kernel_client = kernel_client
-        self.kernel_manager = kernel_manager
+        # If a connection_file is provided, attach to an existing kernel; otherwise start a new one
+        if connection_file:
+            # Connect to an existing kernel via connection file
+            km = jupyter_client.KernelManager(connection_file=connection_file)
+            try:
+                km.load_connection_file(connection_file)
+            except Exception:
+                # If the path is not absolute, let jupyter_client resolve it
+                from jupyter_client import find_connection_file
+
+                resolved = find_connection_file(connection_file)
+                km.connection_file = resolved
+                km.load_connection_file(resolved)
+            kc = km.client()
+            try:
+                kc.load_connection_file(km.connection_file)
+            except Exception:
+                pass
+            try:
+                kc.start_channels()
+            except Exception:
+                pass
+            self.kernel_manager = km
+            self.kernel_client = kc
+            # Best effort: set a minimal spec-like object for language checks
+            try:
+                self.ksm = jupyter_client.kernelspec.KernelSpecManager()
+                self.spec = self.ksm.get_kernel_spec(kernel_name)
+            except Exception:
+
+                class _Spec:
+                    language = "python"
+
+                self.spec = _Spec()
+            self._owns_kernel = False
+        else:
+            if runtime_dir:
+                # Start a new kernel and force connection file under runtime_dir
+                os.makedirs(runtime_dir, exist_ok=True)
+                km = jupyter_client.KernelManager()
+                km.kernel_name = kernel_name
+                km.connection_file = os.path.join(
+                    runtime_dir, f"kernel-{uuid4().hex}.json"
+                )
+                km.start_kernel()
+                kc = km.client()
+                try:
+                    kc.load_connection_file(km.connection_file)
+                except Exception:
+                    pass
+                kc.start_channels()
+                kernel_manager, kernel_client = km, kc
+            else:
+                # Default behavior
+                kernel_manager, kernel_client = jupyter_client.manager.start_new_kernel(
+                    kernel_name=kernel_name
+                )
+            self.ksm = jupyter_client.kernelspec.KernelSpecManager()
+            self.spec = self.ksm.get_kernel_spec(kernel_name)
+            self.kernel_client = kernel_client
+            self.kernel_manager = kernel_manager
+            self._owns_kernel = True
         self.cells: List[Dict[str, Any]] = []
         self.notebook_path = notebook_path
-        self.memory_monitor = MemoryMonitor(kernel_manager)
+        self.memory_monitor = MemoryMonitor(self.kernel_manager)
+        # Controls whether auto-save during execute() should overwrite existing files
+        self.auto_save_overwrite = auto_save_overwrite
+        # If a notebook file exists and overwrite mode is enabled, load existing cells
+        if notebook_path and auto_save_overwrite and os.path.exists(notebook_path):
+            try:
+                self.load_notebook(notebook_path)
+            except Exception:
+                # Ignore load errors and start fresh
+                pass
         if notebook_path:
-            self.save_notebook()
+            self.save_notebook(overwrite=self.auto_save_overwrite)
+
+    @classmethod
+    def from_connection_file(
+        cls,
+        connection_file: str,
+        notebook_path: Optional[str] = None,
+        kernel_name: str = "python",
+    ) -> "JupyterClientExecutor":
+        return cls(
+            kernel_name=kernel_name,
+            notebook_path=notebook_path,
+            connection_file=connection_file,
+        )
+
+    @property
+    def connection_file(self) -> Optional[str]:
+        """Return the path to the kernel connection file if available."""
+        if getattr(self, "kernel_manager", None) is None:
+            return None
+        return getattr(self.kernel_manager, "connection_file", None)
 
     def _strip_ansi_codes(self, text: str) -> str:
         """
@@ -202,7 +292,11 @@ class JupyterClientExecutor:
                 break
 
     def execute(
-        self, code: str, add_cell: bool = True, backup_var: List[str] = None
+        self,
+        code: str,
+        add_cell: bool = True,
+        backup_var: List[str] = None,
+        save_overwrite: Optional[bool] = None,
     ) -> Dict[str, Any]:
         """
         Execute code in the Jupyter kernel and return the results.
@@ -449,7 +543,12 @@ class JupyterClientExecutor:
 
             # Auto-save if notebook_path is set
             if self.notebook_path:
-                self.save_notebook()
+                overwrite_flag = (
+                    self.auto_save_overwrite
+                    if save_overwrite is None
+                    else save_overwrite
+                )
+                self.save_notebook(overwrite=overwrite_flag)
         return result
 
     def rerun_cell(self, cell_index: int) -> None:
@@ -477,13 +576,16 @@ class JupyterClientExecutor:
         # Add documentation
         self.add_markdown(f"Re-run cell {cell_index}")
 
-    def save_notebook(self, filename: Optional[str] = None) -> Optional[str]:
+    def save_notebook(
+        self, filename: Optional[str] = None, overwrite: bool = False
+    ) -> Optional[str]:
         """
         Save the current notebook state to a file.
 
         Args:
             filename (str, optional): Name of the notebook file. If None, uses the notebook_path
                                      set during initialization or generates a timestamp-based name.
+            overwrite (bool): If False and the file exists, append a timestamp to avoid overwriting.
 
         Returns:
             str: Path to the saved notebook file
@@ -497,6 +599,12 @@ class JupyterClientExecutor:
 
         # Create directory if it doesn't exist
         os.makedirs(os.path.dirname(os.path.abspath(filename)), exist_ok=True)
+
+        # If not overwriting, and target exists, generate a non-colliding filename
+        if not overwrite and os.path.exists(filename):
+            base, ext = os.path.splitext(filename)
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            filename = f"{base}_{timestamp}{ext}"
 
         notebook = {
             "cells": self.cells,
@@ -529,14 +637,54 @@ class JupyterClientExecutor:
             print(f"Error saving notebook: {str(e)}")
             return None
 
+    def load_notebook(self, filename: Optional[str] = None) -> None:
+        """Load notebook cells from a .ipynb file into memory (does not execute)."""
+        if filename is None:
+            filename = self.notebook_path
+        if not filename:
+            return
+        with open(filename, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        cells = data.get("cells", [])
+        # Only accept list of dicts to avoid malformed inputs
+        if isinstance(cells, list):
+            self.cells = cells
+
     def shutdown(self) -> None:
         """Shut down the kernel and the client."""
         if self.kernel_client:
             self.kernel_client.stop_channels()
             self.kernel_client = None
         if self.kernel_manager:
-            self.kernel_manager.shutdown_kernel()
-            self.kernel_manager = None
+            # Only shut down kernels that we started ourselves
+            try:
+                if getattr(self, "_owns_kernel", False):
+                    self.kernel_manager.shutdown_kernel()
+            finally:
+                self.kernel_manager = None
+
+    def kill_kernel(self) -> None:
+        """Forcefully terminate the kernel process and close channels."""
+        # Try to stop channels first
+        if getattr(self, "kernel_client", None):
+            try:
+                self.kernel_client.stop_channels()
+            except Exception:
+                pass
+            finally:
+                self.kernel_client = None
+        # Then force shutdown the kernel (now=True attempts immediate kill)
+        if getattr(self, "kernel_manager", None):
+            try:
+                try:
+                    self.kernel_manager.shutdown_kernel(now=True)
+                except TypeError:
+                    # Older jupyter_client may not support 'now'; fallback
+                    self.kernel_manager.shutdown_kernel()
+            except Exception:
+                pass
+            finally:
+                self.kernel_manager = None
 
 
 class NotebookManager:
@@ -544,8 +692,26 @@ class NotebookManager:
         self.notebook = {}
         self.active_nbid = None
 
-    def create_notebook(self, nbid, path, kernel="python3"):
-        self.notebook[nbid] = JupyterClientExecutor(kernel, path)
+    def create_notebook(
+        self,
+        nbid,
+        path=None,
+        kernel="python3",
+        connection_file=None,
+        runtime_dir=None,
+        auto_save_overwrite: bool = False,
+    ):
+        """Create a notebook. If connection_file is provided, attach to an existing kernel; otherwise start a new one.
+
+        If starting a new kernel, runtime_dir can be used to control where the connection file is written.
+        """
+        self.notebook[nbid] = JupyterClientExecutor(
+            kernel_name=kernel,
+            notebook_path=path,
+            connection_file=connection_file,
+            runtime_dir=runtime_dir,
+            auto_save_overwrite=auto_save_overwrite,
+        )
         self.active_nbid = nbid
 
     def shutdown_notebook(self, nbid=None):
@@ -558,6 +724,44 @@ class NotebookManager:
         self.notebook[nbid].shutdown()
         del self.notebook[nbid]
         return f"Notebook {nbid} shutdown."
+
+    def save_notebook(self, nbid=None, filename=None, overwrite: bool = False):
+        """Save the specified (or active) notebook to disk with safe-save support."""
+        if nbid is None:
+            nbid = self.active_nbid
+        if nbid not in self.notebook:
+            raise ValueError(
+                f"Notebook {nbid} not found. Available notebooks: {self.list_notebook()}"
+            )
+        return self.notebook[nbid].save_notebook(filename=filename, overwrite=overwrite)
+
+    def close_connection(self, nbid=None):
+        """Close client channels for the notebook without terminating the kernel."""
+        if nbid is None:
+            nbid = self.active_nbid
+        if nbid not in self.notebook:
+            raise ValueError(
+                f"Notebook {nbid} not found. Available notebooks: {self.list_notebook()}"
+            )
+        executor = self.notebook[nbid]
+        if getattr(executor, "kernel_client", None):
+            try:
+                executor.kernel_client.stop_channels()
+            finally:
+                executor.kernel_client = None
+        return f"Notebook {nbid} connection closed."
+
+    def kill_kernel(self, nbid=None):
+        """Forcefully terminate the kernel for the given notebook and drop the handle."""
+        if nbid is None:
+            nbid = self.active_nbid
+        if nbid not in self.notebook:
+            raise ValueError(
+                f"Notebook {nbid} not found. Available notebooks: {self.list_notebook()}"
+            )
+        self.notebook[nbid].kill_kernel()
+        # Keep the entry but it's effectively disconnected; caller may choose to delete
+        return f"Notebook {nbid} kernel killed."
 
     def switch_notebook(self, nbid):
         self.active_nbid = nbid
