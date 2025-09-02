@@ -474,13 +474,18 @@ class JupyterClientExecutor:
                 elif msg["msg_type"] == "error":
                     if backup_var and restore_code:
                         # Execute restore code directly in the kernel
+
                         try:
                             restore_msg_id = self.kernel_client.execute(restore_code)
                             # Wait for restore execution to complete
                             restore_deadline = (
                                 time.time() + 10.0
                             )  # 10 second timeout for restore operations
-                            while time.time() < restore_deadline:
+                            restore_completed = False
+
+                            while (
+                                time.time() < restore_deadline and not restore_completed
+                            ):
                                 try:
                                     restore_msg = self.kernel_client.get_iopub_msg(
                                         timeout=0.1
@@ -499,11 +504,25 @@ class JupyterClientExecutor:
                                             ]
                                             == "idle"
                                         ):
+                                            restore_completed = True
                                             break
-                                except Exception:
+                                        elif restore_msg["msg_type"] == "error":
+                                            # If restore itself fails, log it but continue
+                                            print(
+                                                f"Warning: Restore operation failed: {restore_msg['content']}"
+                                            )
+                                            break
+                                except Exception as e:
+                                    print(
+                                        f"Warning: Error during restore operation: {e}"
+                                    )
                                     break
-                        except Exception:
-                            pass  # Ignore restore errors
+
+                            if not restore_completed:
+                                print("Warning: Restore operation timed out")
+
+                        except Exception as e:
+                            print(f"Warning: Failed to execute restore code: {e}")
                     error_msg = "\n".join(content["traceback"])
 
                     clean_traceback = [
