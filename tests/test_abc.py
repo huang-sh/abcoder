@@ -536,7 +536,7 @@ async def test_backup_variable_functionality(mcp):
             },
         )
         # Should show the error
-        assert result.content[0].text
+        assert "[1, 2, 3]" in result.content[0].text
 
         # Verify the variable was restored after error
         result = await client.call_tool(
