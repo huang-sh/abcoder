@@ -473,9 +473,13 @@ class JupyterClientExecutor:
                         )
                 elif msg["msg_type"] == "error":
                     if backup_var and restore_code:
-                        # Use self.execute to perform restore in a controlled way
+                        # Use self.execute to perform restore and capture stdout
                         try:
-                            _ = self.execute(restore_code, add_cell=False)
+                            restore_result = self.execute(restore_code, add_cell=False)
+                            if isinstance(restore_result, dict):
+                                stdout = restore_result.get("result") or ""
+                                if stdout:
+                                    result["result"] += stdout
                         except Exception as e:
                             print(
                                 f"Warning: Restore operation via self.execute failed: {e}"
