@@ -348,10 +348,9 @@ class JupyterClientExecutor:
 
         if backup_var:
             # Create backup code: backup variables, then execute user code
-            backup_code = ""
+            backup_code = "import copy\n"
             for var in backup_var:
-                # Use different copy methods based on variable type
-                backup_code += f"{var}_backup = {var}[:] if isinstance({var}, list) else {var}.copy() if hasattr({var}, 'copy') else {var}\n"
+                backup_code += f"{var}_backup = copy.deepcopy({var})\n"
             backup_code += f"{code}\n"
             # Store the restore code separately for error handling only
             restore_code = ""
