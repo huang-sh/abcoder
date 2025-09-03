@@ -473,56 +473,13 @@ class JupyterClientExecutor:
                         )
                 elif msg["msg_type"] == "error":
                     if backup_var and restore_code:
-                        # Execute restore code directly in the kernel
-
+                        # Use self.execute to perform restore in a controlled way
                         try:
-                            restore_msg_id = self.kernel_client.execute(restore_code)
-                            # Wait for restore execution to complete
-                            restore_deadline = (
-                                time.time() + 10.0
-                            )  # 10 second timeout for restore operations
-                            restore_completed = False
-
-                            while (
-                                time.time() < restore_deadline and not restore_completed
-                            ):
-                                try:
-                                    restore_msg = self.kernel_client.get_iopub_msg(
-                                        timeout=0.1
-                                    )
-                                    # Only process messages for our restore execution
-                                    if (
-                                        restore_msg.get("parent_header", {}).get(
-                                            "msg_id"
-                                        )
-                                        == restore_msg_id
-                                    ):
-                                        if (
-                                            restore_msg["msg_type"] == "status"
-                                            and restore_msg["content"][
-                                                "execution_state"
-                                            ]
-                                            == "idle"
-                                        ):
-                                            restore_completed = True
-                                            break
-                                        elif restore_msg["msg_type"] == "error":
-                                            # If restore itself fails, log it but continue
-                                            print(
-                                                f"Warning: Restore operation failed: {restore_msg['content']}"
-                                            )
-                                            break
-                                except Exception as e:
-                                    print(
-                                        f"Warning: Error during restore operation: {e}"
-                                    )
-                                    break
-
-                            if not restore_completed:
-                                print("Warning: Restore operation timed out")
-
+                            _ = self.execute(restore_code, add_cell=False)
                         except Exception as e:
-                            print(f"Warning: Failed to execute restore code: {e}")
+                            print(
+                                f"Warning: Restore operation via self.execute failed: {e}"
+                            )
                     error_msg = "\n".join(content["traceback"])
 
                     clean_traceback = [
