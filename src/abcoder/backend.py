@@ -357,6 +357,9 @@ class JupyterClientExecutor:
             restore_code = ""
             for var in backup_var:
                 restore_code += f"{var} = {var}_backup\n"
+            # Print restored variables so they appear in the error response
+            for var in backup_var:
+                restore_code += f"print({var})\n"
         else:
             backup_code = code
             restore_code = ""
@@ -473,13 +476,13 @@ class JupyterClientExecutor:
                         )
                 elif msg["msg_type"] == "error":
                     if backup_var and restore_code:
-                        # Use self.execute to perform restore and capture stdout
+                        # Use self.execute to perform restore
                         try:
                             restore_result = self.execute(restore_code, add_cell=False)
-                            if isinstance(restore_result, dict):
-                                stdout = restore_result.get("result") or ""
-                                if stdout:
-                                    result["result"] += stdout
+                            if isinstance(restore_result, dict) and restore_result.get(
+                                "result"
+                            ):
+                                result["result"] += restore_result["result"]
                         except Exception as e:
                             print(
                                 f"Warning: Restore operation via self.execute failed: {e}"
