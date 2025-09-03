@@ -350,12 +350,20 @@ class JupyterClientExecutor:
             # Create backup code: backup variables, then execute user code
             backup_code = "import copy\n"
             for var in backup_var:
+                backup_code += f"print(f'backup {var} id: {{id({var})}}')\n"
                 backup_code += f"{var}_backup = copy.deepcopy({var})\n"
+                backup_code += (
+                    f"print(f'backup {var}_backup id: {{id({var}_backup)}}')\n"
+                )
             backup_code += f"{code}\n"
             # Store the restore code separately for error handling only
             restore_code = ""
             for var in backup_var:
                 restore_code += f"{var} = {var}_backup\n"
+                restore_code += f"print(f'restore {var} id: {{id({var})}}')\n"
+                restore_code += (
+                    f"print(f'restore {var}_backup id: {{id({var}_backup)}}')\n"
+                )
             # Print restored variables so they appear in the error response
             for var in backup_var:
                 restore_code += f"print({var})\n"
