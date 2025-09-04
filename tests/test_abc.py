@@ -509,10 +509,11 @@ async def test_backup_variable_functionality(mcp):
             "single_step_execute",
             {
                 "code": "print(f'After backup: a={a}, b={b}')",
-                "backup_var": None,
+                "backup_var": ["a", "b"],
                 "show_var": None,
             },
         )
+        print(result.content[0].text[20:])
         assert "After backup: a=100, b=200" in result.content[0].text
 
         # Test backup functionality with error recovery
