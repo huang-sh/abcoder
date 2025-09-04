@@ -12,6 +12,7 @@ from contextlib import contextmanager
 from copy import deepcopy
 from queue import Empty
 from uuid import uuid4
+from textwrap import indent
 
 
 class MemoryMonitor:
@@ -307,6 +308,44 @@ class JupyterClientExecutor:
             except Exception:
                 break
 
+    def generate_atomic_execute_code(self, code: str, backup_var) -> str:
+        """
+        Generate atomic code for the given variables.
+        """
+        backup_dict = "{" + ", ".join([f"'{v}': {v}" for v in backup_var]) + "}"
+        code_literal = repr(code)
+        code = indent(code, " " * 4)
+        def_inner_func = ("def inner_func({args}):\n{code}\n").format(
+            args=", ".join(backup_var), code=code
+        )
+
+        run_inner_func = "inner_func({args})".format(
+            args=", ".join([f"box['{v}']" for v in backup_var])
+        )
+        atomic_code_lines = [
+            "from abcoder.atomic import atomic_objects",
+            f"{def_inner_func}",
+            f"_objects = {backup_dict}",
+            "_scalar_types = (int, float, str)",
+            "_scalar_names = [n for n, v in _objects.items() if isinstance(v, _scalar_types)]",
+            "_commit_map = {n: (lambda dst, src: None) for n in _scalar_names}",
+            "with atomic_objects(_objects, commit_map=_commit_map) as box:",
+            "    if _scalar_names:",
+            "        _locals = {n: box[n] for n in _objects.keys()}",
+            f"        _code = compile({code_literal}, '<string>', 'exec')",
+            "        exec(_code, globals(), _locals)",
+            "        for _name in _scalar_names:",
+            "            box[_name] = _locals.get(_name, box[_name])",
+            "        for _name in _scalar_names:",
+            "            globals()[_name] = box[_name]",
+            "    else:",
+            f"        {run_inner_func}",
+            "",
+        ]
+        atomic_code = "\n".join(atomic_code_lines)
+        print(atomic_code)
+        return atomic_code
+
     def execute(
         self,
         code: str,
@@ -347,29 +386,9 @@ class JupyterClientExecutor:
         self.memory_monitor.start_monitoring()
 
         if backup_var:
-            # Create backup code: backup variables, then execute user code
-            backup_code = "import copy\n"
-            for var in backup_var:
-                backup_code += f"print(f'backup {var} id: {{id({var})}}')\n"
-                backup_code += f"{var}_backup = copy.deepcopy({var})\n"
-                backup_code += (
-                    f"print(f'backup {var}_backup id: {{id({var}_backup)}}')\n"
-                )
-            backup_code += f"{code}\n"
-            # Store the restore code separately for error handling only
-            restore_code = ""
-            for var in backup_var:
-                restore_code += f"{var} = {var}_backup\n"
-                restore_code += f"print(f'restore {var} id: {{id({var})}}')\n"
-                restore_code += (
-                    f"print(f'restore {var}_backup id: {{id({var}_backup)}}')\n"
-                )
-            # Print restored variables so they appear in the error response
-            for var in backup_var:
-                restore_code += f"print({var})\n"
+            backup_code = self.generate_atomic_execute_code(code, backup_var)
         else:
             backup_code = code
-            restore_code = ""
 
         try:
             # Try to compile the code to check syntax
@@ -482,18 +501,6 @@ class JupyterClientExecutor:
                             }
                         )
                 elif msg["msg_type"] == "error":
-                    if backup_var and restore_code:
-                        # Use self.execute to perform restore
-                        try:
-                            restore_result = self.execute(restore_code, add_cell=False)
-                            if isinstance(restore_result, dict) and restore_result.get(
-                                "result"
-                            ):
-                                result["result"] += restore_result["result"]
-                        except Exception as e:
-                            print(
-                                f"Warning: Restore operation via self.execute failed: {e}"
-                            )
                     error_msg = "\n".join(content["traceback"])
 
                     clean_traceback = [
@@ -582,6 +589,9 @@ class JupyterClientExecutor:
             # Auto-save if notebook_path is set
             self.save_notebook()
         return result
+
+    def restore_backup_var(self, backup_var: List[str]) -> None:
+        pass
 
     def rerun_cell(self, cell_index: int) -> None:
         """
