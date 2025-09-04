@@ -1,11 +1,11 @@
-import pytest
 from abcoder.backend import JupyterClientExecutor
 
 
-@pytest.mark.asyncio
-def test_jupyterclientexecutor_backup_restore():
+def test_jupyterclientexecutor_backup_restore(tmp_path):
     # 1. 启动 JupyterClientExecutor
-    executor = JupyterClientExecutor(kernel_name="python3")
+    executor = JupyterClientExecutor(
+        kernel_name="python3", notebook_path=str(tmp_path / "test.ipynb")
+    )
 
     # 2. 初始化变量
     code_init = "my_list = [1, 2, 3]\nprint(f'Initial: {my_list}, id: {id(my_list)}')"
