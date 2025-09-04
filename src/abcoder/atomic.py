@@ -231,12 +231,6 @@ def atomic_object(
             raise
 
 
-__all__ = [
-    "atomic_object",
-    "register_atomic_strategy",
-]
-
-
 @contextmanager
 def atomic_objects(
     objects: Optional[dict] = None,
@@ -299,3 +293,10 @@ def atomic_objects(
                     # Best-effort rollback; continue
                     pass
             raise
+
+
+__all__ = [
+    "atomic_object",
+    "atomic_objects",
+    "register_atomic_strategy",
+]
