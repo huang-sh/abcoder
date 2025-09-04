@@ -4,11 +4,13 @@ import os
 
 
 @pytest.mark.asyncio
-async def test_notebook(mcp):
+async def test_notebook(mcp, tmp_path):
     async with Client(mcp) as client:
         # Test create_notebook
+        nb_path = tmp_path / "test.ipynb"
         result = await client.call_tool(
-            "create_notebook", {"nbid": "test", "kernel": "python3"}
+            "create_notebook",
+            {"nbid": "test", "kernel": "python3", "path": str(nb_path)},
         )
         assert "test" in result.content[0].text
 
@@ -79,12 +81,14 @@ async def test_notebook(mcp):
 
 
 @pytest.mark.asyncio
-async def test_memory_time_tracking(mcp):
+async def test_memory_time_tracking(mcp, tmp_path):
     """Test memory and time monitoring features"""
     async with Client(mcp) as client:
         # Create a test notebook
+        nb_path = tmp_path / "memory_test.ipynb"
         result = await client.call_tool(
-            "create_notebook", {"nbid": "memory_test", "kernel": "python3"}
+            "create_notebook",
+            {"nbid": "memory_test", "kernel": "python3", "path": str(nb_path)},
         )
         assert "memory_test" in result.content[0].text
 
@@ -165,12 +169,14 @@ print(f"数组大小: {large_array.nbytes / 1024 / 1024:.2f} MB")
 
 
 @pytest.mark.asyncio
-async def test_memory_monitor_accuracy(mcp):
+async def test_memory_monitor_accuracy(mcp, tmp_path):
     """Test the accuracy of memory monitoring"""
     async with Client(mcp) as client:
         # Create a test notebook
+        nb_path = tmp_path / "accuracy_test.ipynb"
         result = await client.call_tool(
-            "create_notebook", {"nbid": "accuracy_test", "kernel": "python3"}
+            "create_notebook",
+            {"nbid": "accuracy_test", "kernel": "python3", "path": str(nb_path)},
         )
         assert "accuracy_test" in result.content[0].text
 
@@ -236,12 +242,14 @@ print("内存已释放")
 
 
 @pytest.mark.asyncio
-async def test_time_monitoring_accuracy(mcp):
+async def test_time_monitoring_accuracy(mcp, tmp_path):
     """Test the accuracy of time monitoring"""
     async with Client(mcp) as client:
         # Create a test notebook
+        nb_path = tmp_path / "time_test.ipynb"
         result = await client.call_tool(
-            "create_notebook", {"nbid": "time_test", "kernel": "python3"}
+            "create_notebook",
+            {"nbid": "time_test", "kernel": "python3", "path": str(nb_path)},
         )
         assert "time_test" in result.content[0].text
 
@@ -307,17 +315,21 @@ print(f"计算结果: {result}")
 
 
 @pytest.mark.asyncio
-async def test_notebook_management_features(mcp):
+async def test_notebook_management_features(mcp, tmp_path):
     """Test notebook management features like save, load, switch, etc."""
     async with Client(mcp) as client:
         # Create multiple test notebooks
+        nb1_path = tmp_path / "notebook1.ipynb"
         result = await client.call_tool(
-            "create_notebook", {"nbid": "notebook1", "kernel": "python3"}
+            "create_notebook",
+            {"nbid": "notebook1", "kernel": "python3", "path": str(nb1_path)},
         )
         assert "notebook1" in result.content[0].text
 
+        nb2_path = tmp_path / "notebook2.ipynb"
         result = await client.call_tool(
-            "create_notebook", {"nbid": "notebook2", "kernel": "python3"}
+            "create_notebook",
+            {"nbid": "notebook2", "kernel": "python3", "path": str(nb2_path)},
         )
         assert "notebook2" in result.content[0].text
 
@@ -363,12 +375,14 @@ async def test_notebook_management_features(mcp):
 
 
 @pytest.mark.asyncio
-async def test_markdown_and_cell_operations(mcp):
+async def test_markdown_and_cell_operations(mcp, tmp_path):
     """Test markdown cell addition and cell rerun functionality."""
     async with Client(mcp) as client:
         # Create a test notebook
+        nb_path = tmp_path / "markdown_test.ipynb"
         result = await client.call_tool(
-            "create_notebook", {"nbid": "markdown_test", "kernel": "python3"}
+            "create_notebook",
+            {"nbid": "markdown_test", "kernel": "python3", "path": str(nb_path)},
         )
         assert "markdown_test" in result.content[0].text
 
@@ -400,12 +414,14 @@ async def test_markdown_and_cell_operations(mcp):
 
 
 @pytest.mark.asyncio
-async def test_error_handling_and_edge_cases(mcp):
+async def test_error_handling_and_edge_cases(mcp, tmp_path):
     """Test error handling and edge cases."""
     async with Client(mcp) as client:
         # Test creating notebook with invalid parameters
+        nb_path = tmp_path / "error_test.ipynb"
         result = await client.call_tool(
-            "create_notebook", {"nbid": "error_test", "kernel": "python3"}
+            "create_notebook",
+            {"nbid": "error_test", "kernel": "python3", "path": str(nb_path)},
         )
         assert "error_test" in result.content[0].text
 
@@ -441,12 +457,14 @@ async def test_error_handling_and_edge_cases(mcp):
 
 
 @pytest.mark.asyncio
-async def test_backup_variable_functionality(mcp):
+async def test_backup_variable_functionality(mcp, tmp_path):
     """Test backup variable functionality in detail."""
     async with Client(mcp) as client:
-        # Create a test notebook
+        # Create a test notebook at a temporary path
+        nb_path = tmp_path / "backup_test.ipynb"
         result = await client.call_tool(
-            "create_notebook", {"nbid": "backup_test", "kernel": "python3"}
+            "create_notebook",
+            {"nbid": "backup_test", "kernel": "python3", "path": str(nb_path)},
         )
         assert "backup_test" in result.content[0].text
 
@@ -555,12 +573,14 @@ async def test_backup_variable_functionality(mcp):
 
 
 @pytest.mark.asyncio
-async def test_show_variable_functionality(mcp):
+async def test_show_variable_functionality(mcp, tmp_path):
     """Test show variable functionality in detail."""
     async with Client(mcp) as client:
         # Create a test notebook
+        nb_path = tmp_path / "show_var_test.ipynb"
         result = await client.call_tool(
-            "create_notebook", {"nbid": "show_var_test", "kernel": "python3"}
+            "create_notebook",
+            {"nbid": "show_var_test", "kernel": "python3", "path": str(nb_path)},
         )
         assert "show_var_test" in result.content[0].text
 
@@ -617,16 +637,18 @@ async def test_show_variable_functionality(mcp):
 
 
 @pytest.mark.asyncio
-async def test_connection_file_output(mcp):
+async def test_connection_file_output(mcp, tmp_path):
     """Test connection_file_output parameter functionality."""
     async with Client(mcp) as client:
         # Test creating notebook with connection_file_output
         # Note: This might need to be implemented in the MCP server
+        nb_path = tmp_path / "connection_test.ipynb"
         result = await client.call_tool(
             "create_notebook",
             {
                 "nbid": "connection_test",
                 "kernel": "python3",
+                "path": str(nb_path),
                 # "connection_file_output": "/tmp/test_connection.json"  # Uncomment if supported
             },
         )
@@ -674,12 +696,14 @@ async def test_file_operations_and_paths(mcp):
 
 
 @pytest.mark.asyncio
-async def test_api_documentation_query(mcp):
+async def test_api_documentation_query(mcp, tmp_path):
     """Test API documentation query functionality."""
     async with Client(mcp) as client:
         # Create a test notebook
+        nb_path = tmp_path / "api_doc_test.ipynb"
         result = await client.call_tool(
-            "create_notebook", {"nbid": "api_doc_test", "kernel": "python3"}
+            "create_notebook",
+            {"nbid": "api_doc_test", "kernel": "python3", "path": str(nb_path)},
         )
         assert "api_doc_test" in result.content[0].text
 
@@ -704,12 +728,14 @@ async def test_api_documentation_query(mcp):
 
 
 @pytest.mark.asyncio
-async def test_comprehensive_execution_scenarios(mcp):
+async def test_comprehensive_execution_scenarios(mcp, tmp_path):
     """Test comprehensive execution scenarios including complex code."""
     async with Client(mcp) as client:
         # Create a test notebook
+        nb_path = tmp_path / "comprehensive_test.ipynb"
         result = await client.call_tool(
-            "create_notebook", {"nbid": "comprehensive_test", "kernel": "python3"}
+            "create_notebook",
+            {"nbid": "comprehensive_test", "kernel": "python3", "path": str(nb_path)},
         )
         assert "comprehensive_test" in result.content[0].text
 
@@ -764,12 +790,14 @@ print(f"Outliers: {outliers}")
 
 
 @pytest.mark.asyncio
-async def test_notebook_management_methods(mcp):
+async def test_notebook_management_methods(mcp, tmp_path):
     """Test notebook management methods like add_markdown, rerun_cell, etc."""
     async with Client(mcp) as client:
         # Create a test notebook
+        nb_path = tmp_path / "methods_test.ipynb"
         result = await client.call_tool(
-            "create_notebook", {"nbid": "methods_test", "kernel": "python3"}
+            "create_notebook",
+            {"nbid": "methods_test", "kernel": "python3", "path": str(nb_path)},
         )
         assert "methods_test" in result.content[0].text
 
@@ -844,12 +872,14 @@ async def test_notebook_management_methods(mcp):
 
 
 @pytest.mark.asyncio
-async def test_edge_cases_and_error_scenarios(mcp):
+async def test_edge_cases_and_error_scenarios(mcp, tmp_path):
     """Test edge cases and error scenarios."""
     async with Client(mcp) as client:
         # Test creating notebook with special characters in name
+        nb_path = tmp_path / "test_123_special.ipynb"
         result = await client.call_tool(
-            "create_notebook", {"nbid": "test_123_special", "kernel": "python3"}
+            "create_notebook",
+            {"nbid": "test_123_special", "kernel": "python3", "path": str(nb_path)},
         )
         assert "test_123_special" in result.content[0].text
 
@@ -899,12 +929,14 @@ async def test_edge_cases_and_error_scenarios(mcp):
 
 
 @pytest.mark.asyncio
-async def test_performance_and_stress(mcp):
+async def test_performance_and_stress(mcp, tmp_path):
     """Test performance and stress scenarios."""
     async with Client(mcp) as client:
         # Create a test notebook
+        nb_path = tmp_path / "performance_test.ipynb"
         result = await client.call_tool(
-            "create_notebook", {"nbid": "performance_test", "kernel": "python3"}
+            "create_notebook",
+            {"nbid": "performance_test", "kernel": "python3", "path": str(nb_path)},
         )
         assert "performance_test" in result.content[0].text
 
