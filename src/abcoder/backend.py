@@ -343,7 +343,6 @@ class JupyterClientExecutor:
             "",
         ]
         atomic_code = "\n".join(atomic_code_lines)
-        print(atomic_code)
         return atomic_code
 
     def execute(
@@ -536,7 +535,6 @@ class JupyterClientExecutor:
                     break
                 continue
             except KeyboardInterrupt:
-                print("Interrupted by user.")
                 error_msg = "KeyboardInterrupt: Interrupted by user"
                 result["error"] = {
                     "error_type": "KeyboardInterrupt",
