@@ -682,6 +682,26 @@ class JupyterClientExecutor:
         if isinstance(cells, list):
             self.cells = cells
 
+    def get_all_code(self) -> str:
+        """Get all code from notebook cells as a single string."""
+        code_lines = []
+        for cell in self.cells:
+            if cell.get("cell_type") == "code":
+                source = cell.get("source", "")
+                if isinstance(source, list):
+                    source = "".join(source)
+                if source.strip():
+                    code_lines.append(source)
+        return "\n\n".join(code_lines)
+
+    def export_code_to_file(self, filename: str) -> str:
+        """Export all code cells to a Python file."""
+        code = self.get_all_code()
+        os.makedirs(os.path.dirname(os.path.abspath(filename)), exist_ok=True)
+        with open(filename, "w", encoding="utf-8") as f:
+            f.write(code)
+        return filename
+
     def shutdown(self) -> None:
         """Shut down the kernel and the client."""
         if self.kernel_client:
